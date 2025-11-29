@@ -32,7 +32,7 @@
               <td>{{ c.email|default:'-' }}</td>
               <td>{{ c.created_at|date:"Y-m-d" }}</td>
               <td>
-                <a class="btn btn-primary btn-sm" href="{% url 'customer_detail' c.customer_id %}">
+                <a class="btn btn-primary btn-sm" href="{% url 'billing:customer_detail' c.customer_id %}">
                   View
                 </a>
               </td>

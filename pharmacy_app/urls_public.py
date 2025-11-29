@@ -13,7 +13,7 @@ urlpatterns = [
     # Public landing page or tenant selection
     # path('', lambda request: redirect('landing_page'), name='public_home'),
     path('admin/', admin.site.urls),
-path('tenants/', include(('tenants.urls', 'tenants'), namespace='tenants')),
+    path('tenants/', include(('tenants.urls', 'tenants'), namespace='tenants')),
     path('tenant-access/', tenant_views.tenant_access_view, name='tenant_access_public'),
     path('', include('pharmacy.urls')),
     path('medicine/', include(('medicine.urls', 'medicine'), namespace='medicine')),

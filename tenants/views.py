@@ -1,9 +1,16 @@
 from django.conf import settings
 from django.contrib import messages
+from django.contrib.admin.views.decorators import staff_member_required
+from django.core import signing
+from django.db import connection
+from django.http import HttpResponseForbidden
 from django.shortcuts import render, redirect
+from django.urls import reverse
+from django.utils import timezone
 from django.utils.text import slugify
 from django_tenants.utils import schema_context, get_public_schema_name
 
+from .forms import TenantImpersonationForm
 from .models import Client, Domain
 
 
@@ -83,6 +90,17 @@ def create_tenant_view(request):
     return render(request, 'tenants/create_tenant.html')
 
 
+def _build_tenant_url(domain: str, path: str, request):
+    secure = getattr(settings, 'SECURE_SSL_REDIRECT', False) or request.is_secure()
+    scheme = 'https' if secure else 'http'
+    port = request.get_port()
+    if port and port not in ('80', '443'):
+        host = f'{domain}:{port}'
+    else:
+        host = domain
+    return f"{scheme}://{host}{path}"
+
+
 def tenant_access_view(request):
     """
     Public view used to verify tenant identity before redirecting to their login page.
@@ -111,6 +129,17 @@ def tenant_access_view(request):
             messages.error(request, 'This tenant account has been deactivated. Please contact support.')
             return render(request, 'tenants/tenant_access.html')
 
+        # Auto-disable if expired
+        if client.auto_disable and client.expires_at and timezone.now().date() > client.expires_at:
+            if client.is_active:
+                client.deactivate('Expired')
+            messages.error(request, 'This tenant has expired. Please contact support.')
+            return render(request, 'tenants/tenant_access.html')
+
+        if not client.is_active:
+            messages.error(request, 'This tenant account has been deactivated. Please contact support.')
+            return render(request, 'tenants/tenant_access.html')
+
         if not client.check_access_pin(pin):
             messages.error(request, 'Invalid PIN for the specified tenant.')
             return render(request, 'tenants/tenant_access.html')
@@ -120,10 +149,47 @@ def tenant_access_view(request):
             messages.error(request, 'No domain is configured for this tenant. Please contact support.')
             return render(request, 'tenants/tenant_access.html')
 
-        secure = getattr(settings, 'SECURE_SSL_REDIRECT', False) or request.is_secure()
-        scheme = 'https' if secure else 'http'
-        login_url = f"{scheme}://{primary_domain.domain}.localhost:8000/login/"
+        login_url = _build_tenant_url(primary_domain.domain, '/login/', request)
         return redirect(login_url)
 
     return render(request, 'tenants/tenant_access.html')
+
+
+@staff_member_required
+def tenant_impersonation_view(request):
+    """
+    View accessible from Django admin that allows a global superuser to
+    switch into any tenant without entering credentials on that tenant.
+    """
+    if not request.user.is_superuser:
+        return HttpResponseForbidden("Only superusers can access this feature.")
+
+    form = TenantImpersonationForm(request.POST or None)
+
+    if request.method == 'POST' and form.is_valid():
+        tenant = form.cleaned_data['tenant']
+        next_url = form.cleaned_data['next_url'] or '/dashboard/'
+
+        primary_domain = tenant.domains.filter(is_primary=True).first()
+        if not primary_domain:
+            messages.error(request, 'Selected tenant does not have a primary domain configured.')
+            return redirect(request.path)
+
+        payload = {
+            'schema_name': tenant.schema_name,
+            'global_user_id': request.user.id,
+            'next_url': next_url,
+            'ts': timezone.now().isoformat(),
+        }
+        token = signing.dumps(payload, salt='tenant-impersonation')
+
+        impersonation_path = reverse('super_admin_login')
+        impersonation_url = _build_tenant_url(primary_domain.domain, f'{impersonation_path}?token={token}', request)
+        return redirect(impersonation_url)
+
+    context = {
+        'form': form,
+        'title': 'Tenant Switcher',
+    }
+    return render(request, 'tenants/tenant_impersonation.html', context)
 
