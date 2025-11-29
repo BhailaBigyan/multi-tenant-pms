@@ -90,9 +90,9 @@ WSGI_APPLICATION = 'pharmacy_app.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django_tenants.postgresql_backend',
-        'NAME': 'postgres',
-        'USER': 'postgres',
-        'PASSWORD': 'superadmin',
+        'NAME': 'easedpha_easedpharma',
+        'USER': 'easedpha_easeduser',
+        'PASSWORD': '@easedpharma0010PMS',
         'HOST': 'localhost',   # or your server IP
         'PORT': '5432',
     }
@@ -155,6 +155,7 @@ LOGOUT_REDIRECT_URL = '/login/'
 AUTHENTICATION_BACKENDS = ['pharmacy.backends.CustomUserBackend']
 AUTH_USER_MODEL = 'pharmacy.User'
 
+
 # Email settings (configure properly in production)
 # # SMTP settings for real email sending
 # EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'  # Switch to SMTP for real email sending
@@ -170,7 +171,7 @@ EMAIL_HOST = 'mail.easedpharma.com'   # Example: mail.easedpharma.com
 EMAIL_PORT = 465
 EMAIL_USE_SSL = True
 
-EMAIL_HOST_USER = 'easedpha@easedpharma.com'
+EMAIL_HOST_USER = 'noreply@easedpharma.com'
 EMAIL_HOST_PASSWORD = '@easedpharma0010PMS'
 
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
